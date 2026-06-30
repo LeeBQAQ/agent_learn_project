@@ -1,9 +1,8 @@
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any,TypedDict
 from langchain_core.documents import Document
 
-
-class RAGState:
+class RAGState(TypedDict):
     """RAG 流程状态"""
     chat_history: List[Dict[str, str]]  # 对话历史
     query: str  # 用户查询的内容

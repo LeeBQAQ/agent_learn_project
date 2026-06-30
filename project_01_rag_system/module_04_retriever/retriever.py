@@ -1,7 +1,7 @@
 from typing import List, Optional, Tuple, Dict
 from langchain_core.documents import Document
 from module_02_config.config_01_rag_config import RAGConfig, CollectionConfig
-from module_03_document.milvus_sotre import SimpleMilvusStore, get_milvus_client
+from module_03_document.milvus_store import SimpleMilvusStore, get_milvus_client
 from pymilvus import MilvusClient
 
 
@@ -35,7 +35,7 @@ class MultiCollectionRetriever:
         embeddings,
         collection_key: str = "default",
         k: Optional[int] = None
-    ) -> List[Document]:
+    ) -> List[Dict]:
         """从指定 collection 检索相关文档
         
         Args:
@@ -47,6 +47,11 @@ class MultiCollectionRetriever:
         Returns:
             Document 列表
         """
+        # 验证 collection_key 是否有效
+        if collection_key not in self.config.collections:
+            print(f"⚠️  Collection key '{collection_key}' 不存在，使用 default")
+            collection_key = "default"
+        
         store = self._get_store(collection_key, embeddings)
         coll_config = self.config.get_collection_config(collection_key)
         

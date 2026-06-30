@@ -18,7 +18,7 @@ class SimpleMilvusStore:
         query_embedding = self.embeddings.embed_query(query)
         results = self.client.search(
             collection_name=self.collection_name,
-            query_embeddings=[query_embedding],
+            data=[query_embedding],  # 使用 data 参数而不是 query_embeddings
             limit=k,
             output_fields=["text", "source"],
         )
@@ -30,7 +30,7 @@ class SimpleMilvusStore:
                     Document(
                         page_content=entity.get("text", ""),
                         metadata={
-                            # "source": entity.get("source", ""),
+                            "source": entity.get("source", ""),
                             "score": hit.get("distance", 0)},
                     )
                 )

@@ -3,13 +3,12 @@ from typing import Any
 
 from datasets.io import json
 from dotenv import load_dotenv
-from langchain.chat_models import init_chat_model
 from langchain_core.language_models import LanguageModelInput
 from langchain_deepseek import ChatDeepSeek
-from langchain_openai import ChatOpenAI
-
+from module_01_embeddings.embedding import get_embeddings
 
 class ChatDeepSeekFixReasoningContent(ChatDeepSeek):
+    """修复deepseek思考内容不兼容问题"""
     def _get_request_payload(
             self,
             input_: LanguageModelInput,
@@ -43,24 +42,19 @@ class ChatDeepSeekFixReasoningContent(ChatDeepSeek):
 load_dotenv()
 MODEL_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 MODEL = os.getenv("model")
+
 # 初始化模型
+print("Initializing model...")
 model = ChatDeepSeekFixReasoningContent(
     model=MODEL,
     api_key=MODEL_API_KEY
 )
 # 初始化模型
+print("Initializing no thinking model...")
 no_thinking_model = ChatDeepSeekFixReasoningContent(
     model=MODEL,
     api_key=MODEL_API_KEY,
     extra_body={"thinking": {"type": "disabled"}}
 )
-QWEN_API_KEY = os.getenv("QWEN_API_KEY")
-QWEN_MODEL = os.getenv("QWEN_MODEL")
-
-# model =  ChatOpenAI(
-#     api_key=QWEN_API_KEY,
-#     base_url= "https://dashscope.aliyuncs.com/compatible-mode/v1",
-#     model= QWEN_MODEL,
-#     model_kwargs={"enable_thinking": False}
-#     # other params...
-# )
+print("Initializing embeddings model...")
+embeddings_model = get_embeddings()

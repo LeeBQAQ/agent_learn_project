@@ -67,10 +67,11 @@
 
 ## 🔧 核心组件
 
-### 1. 文档加载器 (DocumentLoader)
+### 1. 文档加载器 (DocumentProcessor)
 - 支持多种格式：TXT、PDF、Markdown、CSV
 - 自动格式检测
 - 元数据提取
+- **智能文档分类**：使用 LLM 自动将文档分类到合适的 collection
 
 ### 2. 文本处理器 (TextProcessor)
 - 智能分块策略
@@ -78,19 +79,26 @@
 - 元数据保留
 
 ### 3. 向量存储 (VectorStore)
-- 使用 Chroma 作为向量数据库
+- 使用 Milvus 作为向量数据库
 - 支持持久化存储
 - 高效相似度搜索
+- **多 Collection 管理**：支持多个独立的知识库
 
 ### 4. 检索器 (Retriever)
 - 语义检索
 - 多种检索策略（相似度、MMR）
 - 可配置的 top-k
+- **智能路由**：使用 LLM 自动选择最相关的 collection 进行检索
 
 ### 5. 生成器 (Generator)
 - 基于上下文的回答生成
 - 来源引用
 - 置信度评估
+
+### 6. 智能路由器 (SmartRouter) ⭐ 新功能
+- **查询路由**：分析用户问题，自动选择合适的 collection
+- **文档分类**：分析文档内容，自动分配到合适的 collection
+- **多集合合并**：从多个 collection 检索并合并结果
 
 ## 🚀 快速开始
 

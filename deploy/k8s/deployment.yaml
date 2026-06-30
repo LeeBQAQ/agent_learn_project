@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-app
+  namespace: rag-system
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: rag-app
+  template:
+    metadata:
+      labels:
+        app: rag-app
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/your-org/rag-system:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: rag-config
+          env:
+            - name: DEEPSEEK_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rag-secrets
+                  key: deepseek-api-key
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10

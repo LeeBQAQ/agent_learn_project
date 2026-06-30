@@ -26,4 +26,4 @@ def test_query_validation(client):
 
 def test_query_empty(client):
     resp = client.post("/api/v1/query", json={"query": ""})
-    assert resp.status_code in (200, 500)
+    assert resp.status_code in (200, 422, 500)

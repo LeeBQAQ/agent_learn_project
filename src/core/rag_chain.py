@@ -1,3 +1,4 @@
+import time
 from typing import List, Optional, Dict, Any
 from langgraph.graph import StateGraph, START, END
 from src.core.config import RAGConfig
@@ -6,6 +7,7 @@ from src.core.embeddings import get_embeddings
 from src.core.retriever import MultiCollectionRetriever
 from src.core.smart_router import SmartRouter
 from src.core.generator import Generator
+from src.api.metrics import rag_query_total, rag_query_latency_seconds, rag_retrieve_docs_count
 
 
 class RAGChain:
@@ -94,6 +96,7 @@ class RAGChain:
         return graph.compile()
 
     def query(self, query: str, chat_history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
+        start = time.perf_counter()
         initial_state: RAGState = {
             "query": query,
             "chat_history": chat_history or [],
@@ -103,7 +106,16 @@ class RAGChain:
             "sources": [],
             "confidence": 0.0,
         }
-        result = self.graph.invoke(initial_state)
+        try:
+            result = self.graph.invoke(initial_state)
+            rag_query_total.labels(status="success").inc()
+            rag_retrieve_docs_count.observe(len(result.get("documents", [])))
+        except Exception:
+            rag_query_total.labels(status="error").inc()
+            raise
+        finally:
+            rag_query_latency_seconds.observe(time.perf_counter() - start)
+
         return {
             "answer": result["answer"],
             "sources": result["sources"],

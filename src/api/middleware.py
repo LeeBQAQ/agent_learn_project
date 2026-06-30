@@ -3,6 +3,7 @@ import uuid
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from src.api.logging_setup import get_logger
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -11,20 +12,27 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         request_id = str(uuid.uuid4())[:8]
         request.state.request_id = request_id
+        logger = get_logger("api")
         start = time.perf_counter()
         response: Response = await call_next(request)
         elapsed_ms = (time.perf_counter() - start) * 1000
         response.headers["X-Request-ID"] = request_id
-        print(
-            f"request_id={request_id} method={request.method} path={request.url.path} "
-            f"status={response.status_code} latency_ms={elapsed_ms:.1f}"
+        logger.info(
+            "request_completed",
+            request_id=request_id,
+            method=request.method,
+            path=request.url.path,
+            status=response.status_code,
+            latency_ms=round(elapsed_ms, 1),
         )
         return response
 
 
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """全局异常处理，统一返回 JSON 错误格式"""
+    logger = get_logger("api")
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.error("unhandled_exception", request_id=request_id, error=str(exc))
     return JSONResponse(
         status_code=500,
-        content={"error": "Internal Server Error", "detail": str(exc)}
+        content={"error": "Internal Server Error", "detail": str(exc)},
     )

@@ -1,0 +1,111 @@
+from typing import List, Optional, Dict, Any
+from langgraph.graph import StateGraph, START, END
+from src.core.config import RAGConfig
+from src.core.state import RAGState
+from src.core.embeddings import get_embeddings
+from src.core.retriever import MultiCollectionRetriever
+from src.core.smart_router import SmartRouter
+from src.core.generator import Generator
+
+
+class RAGChain:
+    """RAG 链：整合所有组件，构建 LangGraph 流水线"""
+
+    def __init__(self, config: RAGConfig = None):
+        self.config = config or RAGConfig()
+        self.generator = Generator(self.config)
+        self.embeddings = get_embeddings()
+        self.retriever = MultiCollectionRetriever(self.config)
+        self.use_smart_routing = self.config.use_smart_routing
+        self.router = SmartRouter(self.config) if self.use_smart_routing else None
+        self.graph = self._build_graph()
+
+    def _build_graph(self):
+        def process_query(state: RAGState) -> RAGState:
+            query = state["query"]
+            chat_history = state.get("chat_history", [])
+            if chat_history:
+                rewritten = self.generator.rewrite_query(query, chat_history)
+                state["query"] = rewritten
+            return state
+
+        def retrieve_documents(state: RAGState) -> RAGState:
+            query = state["query"]
+            if self.use_smart_routing and self.router:
+                collections = self.router.route_query(query)
+            else:
+                collections = ["default"]
+
+            all_docs = []
+            for coll_key in collections:
+                try:
+                    docs = self.retriever.retrieve(query, self.embeddings, collection_key=coll_key)
+                    all_docs.extend(docs)
+                except Exception as e:
+                    print(f"Warning: 从集合 '{coll_key}' 检索失败: {e}")
+
+            seen = set()
+            unique_docs = []
+            for doc in all_docs:
+                if doc.page_content not in seen:
+                    seen.add(doc.page_content)
+                    unique_docs.append(doc)
+
+            state["documents"] = unique_docs
+            context_parts = []
+            sources = []
+            for i, doc in enumerate(unique_docs):
+                context_parts.append(doc.page_content)
+                sources.append({
+                    "id": i,
+                    "source": doc.metadata.get("source", "unknown"),
+                    "content_preview": doc.page_content[:100] + "..."
+                })
+            state["context"] = "\n\n".join(context_parts)
+            state["sources"] = sources
+            return state
+
+        def generate_answer(state: RAGState) -> RAGState:
+            state["answer"] = self.generator.generate(
+                query=state["query"],
+                context=state["context"],
+                chat_history=state.get("chat_history", [])
+            )
+            return state
+
+        def evaluate_response(state: RAGState) -> RAGState:
+            state["confidence"] = self.generator.evaluate_confidence(
+                query=state["query"],
+                context=state["context"],
+                answer=state["answer"]
+            )
+            return state
+
+        graph = StateGraph(RAGState)
+        graph.add_node("process_query", process_query)
+        graph.add_node("retrieve", retrieve_documents)
+        graph.add_node("generate", generate_answer)
+        graph.add_node("evaluate", evaluate_response)
+        graph.add_edge(START, "process_query")
+        graph.add_edge("process_query", "retrieve")
+        graph.add_edge("retrieve", "generate")
+        graph.add_edge("generate", "evaluate")
+        graph.add_edge("evaluate", END)
+        return graph.compile()
+
+    def query(self, query: str, chat_history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
+        initial_state: RAGState = {
+            "query": query,
+            "chat_history": chat_history or [],
+            "documents": [],
+            "context": "",
+            "answer": "",
+            "sources": [],
+            "confidence": 0.0,
+        }
+        result = self.graph.invoke(initial_state)
+        return {
+            "answer": result["answer"],
+            "sources": result["sources"],
+            "confidence": result["confidence"],
+        }

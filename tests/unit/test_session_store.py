@@ -57,15 +57,20 @@ def test_add_round_trims_to_max_rounds():
         "history": [
             {"role": "user", "content": "Q1", "timestamp": "t1"},
             {"role": "assistant", "content": "A1", "timestamp": "t2"},
+            {"role": "user", "content": "Q2", "timestamp": "t3"},
+            {"role": "assistant", "content": "A2", "timestamp": "t4"},
+            {"role": "user", "content": "Q3", "timestamp": "t5"},
         ],
         "created_at": "t1"
     })
     store._redis.get.return_value = existing
 
-    store.add_round("session", "user", "Q2")
+    store.add_round("session", "assistant", "A3")
     saved = json.loads(store._redis.setex.call_args[0][2])
-    assert len(saved["history"]) == 2
-    assert saved["history"][0]["content"] == "A1"
+    # session_max_rounds=2 -> max_msgs=4 -> keep last 4 messages (2 rounds)
+    assert len(saved["history"]) == 4
+    assert saved["history"][0]["content"] == "Q2"
+    assert saved["history"][-1]["content"] == "A3"
 
 
 def test_delete_session():
@@ -91,3 +96,17 @@ def test_list_sessions_returns_keys():
     sessions = store.list_sessions()
     assert len(sessions) == 2
     assert sessions[0]["id"] == "abc"
+
+
+def test_get_history_redis_unavailable():
+    config = RAGConfig()
+    store = SessionStore(config)
+    store._redis = None
+    assert store.get_history("any") == []
+
+
+def test_add_round_redis_unavailable():
+    config = RAGConfig()
+    store = SessionStore(config)
+    store._redis = None
+    store.add_round("any", "user", "hello")  # must not raise

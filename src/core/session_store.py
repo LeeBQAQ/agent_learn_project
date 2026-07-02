@@ -60,7 +60,7 @@ class SessionStore:
                     session = {"history": [], "created_at": now}
 
                 session["history"].append(entry)
-                max_msgs = self.config.session_max_rounds
+                max_msgs = self.config.session_max_rounds * 2
                 session["history"] = session["history"][-max_msgs:]
 
                 ttl_seconds = self.config.session_ttl_hours * 3600

@@ -1,7 +1,10 @@
+import logging
 from typing import List, Optional
 from pymilvus import MilvusClient
 from langchain_core.documents import Document
 from src.core.config import RAGConfig
+
+logger = logging.getLogger(__name__)
 
 
 class SimpleMilvusStore:
@@ -46,9 +49,10 @@ class SimpleMilvusStore:
     def bm25_search(self, query: str, k: int = 3) -> List[Document]:
         """BM25 关键词检索（Milvus TEXT_MATCH）"""
         try:
+            safe_query = query.replace('"', '\\"')
             results = self.client.query(
                 collection_name=self.collection_name,
-                filter=f'TEXT_MATCH("text", "{query}")',
+                filter=f'TEXT_MATCH("text", "{safe_query}")',
                 output_fields=["text", "source"],
                 limit=k,
             )
@@ -60,7 +64,7 @@ class SimpleMilvusStore:
                 ))
             return docs
         except Exception as e:
-            print(f"Warning: BM25 检索失败: {e}")
+            logger.warning("BM25 检索失败: %s", e)
             return []
 
     def hybrid_search(self, query: str, k: int = 3) -> List[Document]:

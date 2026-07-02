@@ -1,4 +1,3 @@
-
 from langchain_core.documents import Document
 
 from src.core.config import RAGConfig
@@ -21,9 +20,7 @@ class MultiCollectionRetriever:
             )
         return self._stores[collection_key]
 
-    def retrieve(
-        self, query: str, embeddings, collection_key: str = "default", k: int | None = None
-    ) -> list[Document]:
+    def retrieve(self, query: str, embeddings, collection_key: str = "default", k: int | None = None) -> list[Document]:
         if collection_key not in self.config.collections:
             collection_key = "default"
         store = self._get_store(collection_key, embeddings)

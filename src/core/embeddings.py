@@ -15,6 +15,7 @@ def get_embeddings():
     if os.getenv("EMBEDDING_API_KEY"):
         try:
             from langchain_openai import OpenAIEmbeddings
+
             return OpenAIEmbeddings(model="text-embedding-ada-002")
         except ImportError:
             raise ImportError("请安装 langchain_openai")

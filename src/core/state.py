@@ -1,13 +1,15 @@
-from typing import List, Dict, Any, TypedDict
+from typing import Any, TypedDict
+
 from langchain_core.documents import Document
 
 
 class RAGState(TypedDict):
     """RAG 流程状态"""
+
     query: str
-    chat_history: List[Dict[str, str]]
-    documents: List[Document]
+    chat_history: list[dict[str, str]]
+    documents: list[Document]
     context: str
     answer: str
-    sources: List[Dict[str, Any]]
+    sources: list[dict[str, Any]]
     confidence: float

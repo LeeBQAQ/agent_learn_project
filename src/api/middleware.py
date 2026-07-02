@@ -1,8 +1,10 @@
 import time
 import uuid
+
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+
 from src.api.logging_setup import get_logger
 
 

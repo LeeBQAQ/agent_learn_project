@@ -1,7 +1,8 @@
 import logging
-from typing import List, Optional
-from pymilvus import MilvusClient
+
 from langchain_core.documents import Document
+from pymilvus import MilvusClient
+
 from src.core.config import RAGConfig
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ class SimpleMilvusStore:
         self.embeddings = embeddings
         self.config = config
 
-    def similarity_search(self, query: str, k: Optional[int] = None) -> List[Document]:
+    def similarity_search(self, query: str, k: int | None = None) -> list[Document]:
         """相似度搜索"""
         k = k or (self.config.top_k if self.config else 3)
         query_embedding = self.embeddings.embed_query(query)
@@ -30,13 +31,15 @@ class SimpleMilvusStore:
         for hit_list in results:
             for hit in hit_list:
                 entity = hit.get("entity", {})
-                docs.append(Document(
-                    page_content=entity.get("text", ""),
-                    metadata={"source": entity.get("source", ""), "score": hit.get("distance", 0)},
-                ))
+                docs.append(
+                    Document(
+                        page_content=entity.get("text", ""),
+                        metadata={"source": entity.get("source", ""), "score": hit.get("distance", 0)},
+                    )
+                )
         return docs
 
-    def as_retriever(self, k: Optional[int] = None):
+    def as_retriever(self, k: int | None = None):
         """返回兼容 LangChain 的 retriever 函数"""
         k = k or (self.config.top_k if self.config else 3)
 
@@ -46,7 +49,7 @@ class SimpleMilvusStore:
 
         return retriever
 
-    def bm25_search(self, query: str, k: int = 3) -> List[Document]:
+    def bm25_search(self, query: str, k: int = 3) -> list[Document]:
         """BM25 关键词检索（Milvus TEXT_MATCH）"""
         try:
             safe_query = query.replace("\\", "\\\\").replace('"', '\\"')
@@ -58,16 +61,18 @@ class SimpleMilvusStore:
             )
             docs = []
             for entity in results:
-                docs.append(Document(
-                    page_content=entity.get("text", ""),
-                    metadata={"source": entity.get("source", ""), "score": 0.0},
-                ))
+                docs.append(
+                    Document(
+                        page_content=entity.get("text", ""),
+                        metadata={"source": entity.get("source", ""), "score": 0.0},
+                    )
+                )
             return docs
         except Exception as e:
             logger.warning("BM25 检索失败: %s", e)
             return []
 
-    def hybrid_search(self, query: str, k: int = 3) -> List[Document]:
+    def hybrid_search(self, query: str, k: int = 3) -> list[Document]:
         """混合检索：向量 + BM25 + RRF 融合"""
         fetch_k = k * 2
 
@@ -78,11 +83,11 @@ class SimpleMilvusStore:
 
 
 def _rrf_fusion(
-    vector_docs: List[Document],
-    bm25_docs: List[Document],
+    vector_docs: list[Document],
+    bm25_docs: list[Document],
     k: int = 60,
     top_k: int = 3,
-) -> List[Document]:
+) -> list[Document]:
     """RRF (Reciprocal Rank Fusion) 融合两路检索结果"""
     scores: dict[str, float] = {}
     doc_map: dict[str, Document] = {}

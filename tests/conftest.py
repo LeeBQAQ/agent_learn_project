@@ -1,4 +1,5 @@
 import pytest
+
 from src.core.config import RAGConfig
 
 

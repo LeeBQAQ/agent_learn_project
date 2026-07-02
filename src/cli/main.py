@@ -1,12 +1,12 @@
-from src.core.rag_chain import RAGChain
 from src.core.config import RAGConfig, SmartMode
 from src.core.document_loader import DocumentProcessor
 from src.core.milvus_store import get_milvus_client
+from src.core.rag_chain import RAGChain
 
 
 def read_file_content(file_path: str) -> str:
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             return f.read()
     except Exception as e:
         print(f"Warning: 读取文件 {file_path} 失败: {e}")

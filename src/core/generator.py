@@ -1,6 +1,7 @@
-from typing import List, Dict
+
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.messages import HumanMessage, AIMessage
+
 from src.core.config import RAGConfig
 from src.core.model import model
 from src.core.templates import TemplateLibrary
@@ -16,7 +17,7 @@ class Generator:
         self.rewrite_prompt = TemplateLibrary.REWRITE_PROMPT
         self.eval_prompt = TemplateLibrary.EVAL_PROMPT
 
-    def rewrite_query(self, query: str, chat_history: List[Dict[str, str]]) -> str:
+    def rewrite_query(self, query: str, chat_history: list[dict[str, str]]) -> str:
         """根据对话历史改写查询"""
         if not chat_history:
             return query
@@ -29,7 +30,7 @@ class Generator:
         chain = self.rewrite_prompt | self.model | StrOutputParser()
         return chain.invoke({"query": query, "chat_history": messages})
 
-    def generate(self, query: str, context: str, chat_history: List[Dict[str, str]] = None) -> str:
+    def generate(self, query: str, context: str, chat_history: list[dict[str, str]] = None) -> str:
         """生成回答"""
         messages = []
         if chat_history:

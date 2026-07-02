@@ -1,6 +1,7 @@
 import pytest
+
 from src.core.config import RAGConfig
-from src.core.milvus_store import get_milvus_client, SimpleMilvusStore
+from src.core.milvus_store import SimpleMilvusStore, get_milvus_client
 
 
 @pytest.mark.integration
@@ -40,9 +41,10 @@ def test_create_and_search_collection():
             auto_id=False,
             max_length=65535,
         )
-        client.insert(collection_name=collection_name, data=[
-            {"id": "0", "vector": [0.1] * 384, "text": "Hello world", "source": "test.txt"}
-        ])
+        client.insert(
+            collection_name=collection_name,
+            data=[{"id": "0", "vector": [0.1] * 384, "text": "Hello world", "source": "test.txt"}],
+        )
 
         store = SimpleMilvusStore(client, collection_name, emb, config)
         docs = store.similarity_search("Hello", k=1)

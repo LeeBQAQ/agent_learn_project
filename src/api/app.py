@@ -1,7 +1,8 @@
 from fastapi import FastAPI
+
 from src.api.middleware import RequestLoggingMiddleware, global_exception_handler
+from src.api.routes import documents, health, query
 from src.api.tracing_setup import setup_tracing
-from src.api.routes import health, query, documents
 
 
 def create_app() -> FastAPI:
@@ -23,6 +24,7 @@ app = create_app()
 
 def main():
     import uvicorn
+
     uvicorn.run("src.api.app:app", host="127.0.0.1", port=8000, reload=True)
 
 

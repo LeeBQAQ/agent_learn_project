@@ -1,6 +1,8 @@
 import json
-from typing import List, Dict, Any
+from typing import Any
+
 from langchain_core.output_parsers import StrOutputParser
+
 from src.core.config import RAGConfig
 from src.core.model import model
 from src.core.templates import TemplateLibrary
@@ -19,13 +21,10 @@ class SmartRouter:
             info_lines.append(f"- {key}: {coll_config.description or coll_config.name}")
         return "\n".join(info_lines)
 
-    def route_query(self, query: str) -> List[str]:
+    def route_query(self, query: str) -> list[str]:
         """根据查询内容，智能选择 collection"""
         try:
-            result = self.router_chain.invoke({
-                "query": query,
-                "collections_info": self.get_collections_info()
-            })
+            result = self.router_chain.invoke({"query": query, "collections_info": self.get_collections_info()})
             result = result.strip()
             if result.startswith("```json"):
                 result = result[7:]
@@ -55,13 +54,12 @@ class DocumentClassifier:
             info_lines.append(f"- {key}: {coll_config.description or coll_config.name}")
         return "\n".join(info_lines)
 
-    def classify_document(self, document_content: str) -> Dict[str, Any]:
+    def classify_document(self, document_content: str) -> dict[str, Any]:
         """分类文档"""
         try:
-            result = self.classifier_chain.invoke({
-                "document_content": document_content[:2000],
-                "collections_info": self.get_categories_info()
-            })
+            result = self.classifier_chain.invoke(
+                {"document_content": document_content[:2000], "collections_info": self.get_categories_info()}
+            )
             result = result.strip()
             if result.startswith("```json"):
                 result = result[7:]
@@ -71,7 +69,7 @@ class DocumentClassifier:
             return {
                 "collection": classification.get("collection", "default"),
                 "confidence": classification.get("confidence", 0.5),
-                "reason": classification.get("reason", "")
+                "reason": classification.get("reason", ""),
             }
         except Exception as e:
             return {"collection": "default", "confidence": 0.0, "reason": str(e)}

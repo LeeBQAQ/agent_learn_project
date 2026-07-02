@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock
+
 from src.core.config import RAGConfig
 from src.core.smart_router import DocumentClassifier
 

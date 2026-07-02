@@ -1,7 +1,9 @@
 from unittest.mock import MagicMock
-from src.core.milvus_store import SimpleMilvusStore, _rrf_fusion
-from src.core.config import RAGConfig
+
 from langchain_core.documents import Document
+
+from src.core.config import RAGConfig
+from src.core.milvus_store import SimpleMilvusStore, _rrf_fusion
 
 
 def test_bm25_search_basic():
@@ -42,10 +44,12 @@ def test_hybrid_search_rrf_merge():
     mock_embeddings.embed_query.return_value = [0.1] * 384
 
     # 向量检索返回：doc_A(rank1), doc_B(rank2)
-    mock_client.search.return_value = [[
-        {"entity": {"text": "Doc A content", "source": "a.txt"}, "distance": 0.95},
-        {"entity": {"text": "Doc B content", "source": "b.txt"}, "distance": 0.80},
-    ]]
+    mock_client.search.return_value = [
+        [
+            {"entity": {"text": "Doc A content", "source": "a.txt"}, "distance": 0.95},
+            {"entity": {"text": "Doc B content", "source": "b.txt"}, "distance": 0.80},
+        ]
+    ]
     # BM25 检索返回：doc_B(rank1), doc_A(rank2)
     mock_client.query.return_value = [
         {"id": "1", "text": "Doc B content", "source": "b.txt"},
@@ -89,4 +93,4 @@ def test_bm25_search_escapes_special_chars():
     call_args = mock_client.query.call_args[1]
     filter_str = call_args["filter"]
     # 不应该包含未转义的双引号或反斜杠
-    assert '\\"' in filter_str or '\\\\' in filter_str  # 至少转义存在
+    assert '\\"' in filter_str or "\\\\" in filter_str  # 至少转义存在

@@ -1,7 +1,8 @@
 import uuid
-from typing import Optional
-from fastapi import APIRouter, BackgroundTasks, UploadFile, File, Form, Depends
+
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, UploadFile
 from pydantic import BaseModel
+
 from src.api.dependencies import get_config
 from src.core.config import RAGConfig
 from src.core.document_loader import DocumentProcessor
@@ -40,7 +41,7 @@ def _process_document(text: str, filename: str, doc_id: str, collection: str | N
 def upload_document(
     background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
-    collection: Optional[str] = Form(None),
+    collection: str | None = Form(None),
     config: RAGConfig = Depends(get_config),
 ):
     results: list[UploadResponse] = []
@@ -52,13 +53,15 @@ def upload_document(
 
         background_tasks.add_task(_process_document, text, file.filename or "unknown", doc_id, collection, config)
 
-        results.append(UploadResponse(
-            document_id=doc_id,
-            filename=file.filename or "unknown",
-            collection=collection or "default",
-            chunk_count=0,
-            status="processing",
-        ))
+        results.append(
+            UploadResponse(
+                document_id=doc_id,
+                filename=file.filename or "unknown",
+                collection=collection or "default",
+                chunk_count=0,
+                status="processing",
+            )
+        )
 
     return BatchUploadResponse(total=len(results), results=results)
 

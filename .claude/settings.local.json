@@ -24,7 +24,9 @@
       "Bash(rtk read *)",
       "Bash(python -c \"from src.api.routes.documents import router, BatchUploadResponse; print\\('OK'\\)\")",
       "Bash(python -c \"from src.api.routes.documents import router; print\\('OK'\\)\")",
-      "Bash(rtk wc *)"
+      "Bash(rtk wc *)",
+      "Bash(rtk ruff *)",
+      "Bash(git reset *)"
     ]
   }
 }

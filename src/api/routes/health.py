@@ -1,10 +1,12 @@
 import time
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+
 from src.api.dependencies import get_config
+from src.api.metrics import metrics_endpoint, milvus_connection_status
 from src.core.config import RAGConfig
 from src.core.milvus_store import get_milvus_client
-from src.api.metrics import metrics_endpoint, milvus_connection_status
 
 router = APIRouter(tags=["health"])
 

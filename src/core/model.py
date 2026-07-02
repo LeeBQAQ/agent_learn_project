@@ -1,6 +1,7 @@
-import os
 import json
+import os
 from typing import Any
+
 from dotenv import load_dotenv
 from langchain_core.language_models import LanguageModelInput
 from langchain_deepseek import ChatDeepSeek
@@ -11,9 +12,7 @@ load_dotenv()
 class _ChatDeepSeekFixReasoningContent(ChatDeepSeek):
     """修复 deepseek 思考内容不兼容问题"""
 
-    def _get_request_payload(
-        self, input_: LanguageModelInput, *, stop: list[str] | None = None, **kwargs: Any
-    ) -> dict:
+    def _get_request_payload(self, input_: LanguageModelInput, *, stop: list[str] | None = None, **kwargs: Any) -> dict:
         payload = super(ChatDeepSeek, self)._get_request_payload(input_, stop=stop, **kwargs)
         input_messages = self._convert_input(input_).to_messages() or []
         for idx, message in enumerate(payload["messages"]):

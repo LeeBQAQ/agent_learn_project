@@ -1,7 +1,8 @@
 import time
-from typing import List, Optional
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+
 from src.api.dependencies import get_rag_chain
 from src.core.rag_chain import RAGChain
 
@@ -15,9 +16,9 @@ class ChatMessage(BaseModel):
 
 class QueryRequest(BaseModel):
     query: str
-    chat_history: Optional[List[ChatMessage]] = None
-    top_k: Optional[int] = None
-    collections: Optional[List[str]] = None
+    chat_history: list[ChatMessage] | None = None
+    top_k: int | None = None
+    collections: list[str] | None = None
 
 
 class SourceItem(BaseModel):
@@ -28,7 +29,7 @@ class SourceItem(BaseModel):
 
 class QueryResponse(BaseModel):
     answer: str
-    sources: List[SourceItem]
+    sources: list[SourceItem]
     confidence: float
     latency_ms: float
 
@@ -44,9 +45,7 @@ def rag_query(req: QueryRequest, rag: RAGChain = Depends(get_rag_chain)):
 
     sources = [
         SourceItem(
-            source=s.get("source", "unknown"),
-            score=s.get("score", 0.0),
-            content_preview=s.get("content_preview", "")
+            source=s.get("source", "unknown"), score=s.get("score", 0.0), content_preview=s.get("content_preview", "")
         )
         for s in result.get("sources", [])
     ]

@@ -1,9 +1,10 @@
 from functools import lru_cache
+
 from src.core.config import RAGConfig
 from src.core.rag_chain import RAGChain
 
 
-@lru_cache()
+@lru_cache
 def get_config() -> RAGConfig:
     """获取 RAG 配置单例"""
     return RAGConfig()

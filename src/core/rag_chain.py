@@ -1,13 +1,15 @@
 import time
-from typing import List, Optional, Dict, Any
-from langgraph.graph import StateGraph, START, END
+from typing import Any
+
+from langgraph.graph import END, START, StateGraph
+
+from src.api.metrics import rag_query_latency_seconds, rag_query_total, rag_retrieve_docs_count
 from src.core.config import RAGConfig
-from src.core.state import RAGState
 from src.core.embeddings import get_embeddings
+from src.core.generator import Generator
 from src.core.retriever import MultiCollectionRetriever
 from src.core.smart_router import SmartRouter
-from src.core.generator import Generator
-from src.api.metrics import rag_query_total, rag_query_latency_seconds, rag_retrieve_docs_count
+from src.core.state import RAGState
 
 
 class RAGChain:
@@ -58,28 +60,26 @@ class RAGChain:
             sources = []
             for i, doc in enumerate(unique_docs):
                 context_parts.append(doc.page_content)
-                sources.append({
-                    "id": i,
-                    "source": doc.metadata.get("source", "unknown"),
-                    "content_preview": doc.page_content[:100] + "..."
-                })
+                sources.append(
+                    {
+                        "id": i,
+                        "source": doc.metadata.get("source", "unknown"),
+                        "content_preview": doc.page_content[:100] + "...",
+                    }
+                )
             state["context"] = "\n\n".join(context_parts)
             state["sources"] = sources
             return state
 
         def generate_answer(state: RAGState) -> RAGState:
             state["answer"] = self.generator.generate(
-                query=state["query"],
-                context=state["context"],
-                chat_history=state.get("chat_history", [])
+                query=state["query"], context=state["context"], chat_history=state.get("chat_history", [])
             )
             return state
 
         def evaluate_response(state: RAGState) -> RAGState:
             state["confidence"] = self.generator.evaluate_confidence(
-                query=state["query"],
-                context=state["context"],
-                answer=state["answer"]
+                query=state["query"], context=state["context"], answer=state["answer"]
             )
             return state
 
@@ -95,7 +95,7 @@ class RAGChain:
         graph.add_edge("evaluate", END)
         return graph.compile()
 
-    def query(self, query: str, chat_history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
+    def query(self, query: str, chat_history: list[dict[str, str]] | None = None) -> dict[str, Any]:
         start = time.perf_counter()
         initial_state: RAGState = {
             "query": query,

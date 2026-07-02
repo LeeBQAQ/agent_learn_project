@@ -31,6 +31,8 @@ class MultiCollectionRetriever:
         store = self._get_store(collection_key, embeddings)
         coll_config = self.config.get_collection_config(collection_key)
         k = k or coll_config.top_k
+        if self.config.hybrid_search:
+            return store.hybrid_search(query=query, k=k)
         return store.similarity_search(query=query, k=k)
 
     def retrieve_from_multiple(

@@ -54,7 +54,7 @@ class DocumentProcessor:
 
         client = get_milvus_client(self.config)
         if not client.has_collection(milvus_collection):
-            client.create_collection(
+            create_params = dict(
                 collection_name=milvus_collection,
                 dimension=dim,
                 primary_field_name="id",
@@ -64,6 +64,9 @@ class DocumentProcessor:
                 auto_id=False,
                 max_length=65535,
             )
+            if self.config.hybrid_search:
+                create_params["enable_dynamic_field"] = True
+            client.create_collection(**create_params)
         data = [
             {"id": str(i), "vector": vec, "text": texts[i], "source": sources[i]}
             for i, vec in enumerate(vectors)

@@ -39,6 +39,9 @@ class RAGConfig:
     # 生成配置
     max_tokens: int = 1024
 
+    # 混合检索配置
+    hybrid_search: bool = False
+
     # 智能路由模式
     smart_mode: SmartMode = SmartMode.FULL
 

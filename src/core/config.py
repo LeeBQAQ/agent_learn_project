@@ -43,6 +43,12 @@ class RAGConfig:
     # 混合检索配置
     hybrid_search: bool = False
 
+    # 会话记忆配置
+    redis_uri: str = field(default_factory=lambda: os.getenv("REDIS_URI", "redis://localhost:6379/0"))
+    sqlserver_conn: str = field(default_factory=lambda: os.getenv("SQLSERVER_CONN", ""))
+    session_ttl_hours: int = 24
+    session_max_rounds: int = 10
+
     # 智能路由模式
     smart_mode: SmartMode = SmartMode.FULL
 

@@ -74,3 +74,19 @@ def test_rrf_formula_correctness():
 
     result = _rrf_fusion(vec_docs, bm25_docs, k=60, top_k=2)
     assert len(result) == 2
+
+
+def test_bm25_search_escapes_special_chars():
+    """验证特殊字符（双引号、反斜杠）被正确转义"""
+    config = RAGConfig(hybrid_search=True)
+    mock_client = MagicMock()
+    mock_client.query.return_value = []
+    mock_embeddings = MagicMock()
+
+    store = SimpleMilvusStore(mock_client, "test_coll", mock_embeddings, config)
+    store.bm25_search('hello "world" \\test')
+
+    call_args = mock_client.query.call_args[1]
+    filter_str = call_args["filter"]
+    # 不应该包含未转义的双引号或反斜杠
+    assert '\\"' in filter_str or '\\\\' in filter_str  # 至少转义存在

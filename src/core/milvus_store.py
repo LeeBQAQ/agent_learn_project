@@ -49,7 +49,7 @@ class SimpleMilvusStore:
     def bm25_search(self, query: str, k: int = 3) -> List[Document]:
         """BM25 关键词检索（Milvus TEXT_MATCH）"""
         try:
-            safe_query = query.replace('"', '\\"')
+            safe_query = query.replace("\\", "\\\\").replace('"', '\\"')
             results = self.client.query(
                 collection_name=self.collection_name,
                 filter=f'TEXT_MATCH("text", "{safe_query}")',

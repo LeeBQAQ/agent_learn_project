@@ -9,6 +9,8 @@ from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
 def setup_tracing(app, service_name: str = "rag-system"):
     """初始化 OpenTelemetry 链路追踪"""
+    if os.getenv("OTEL_TRACING_ENABLED", "false").lower() == "false":
+        return
     otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
     resource = Resource.create({SERVICE_NAME: service_name})
     provider = TracerProvider(resource=resource)

@@ -1,7 +1,30 @@
 {
   "permissions": {
     "allow": [
-      "Bash(rtk git *)"
+      "Bash(rtk git *)",
+      "Bash(rtk ls *)",
+      "Bash(python -c \"from src.core.config import RAGConfig, SmartMode; c = RAGConfig\\(\\); print\\('chunk_size:', c.chunk_size, 'smart_mode:', c.smart_mode\\)\")",
+      "Bash(python -c \"from src.core.state import RAGState; print\\('RAGState keys:', list\\(RAGState.__annotations__.keys\\(\\)\\)\\)\")",
+      "Bash(python -c \"from src.core.templates import TemplateLibrary; print\\('templates OK'\\)\")",
+      "Bash(python -c \"from src.core.generator import Generator; print\\('generator OK'\\)\")",
+      "Bash(python -c \"from src.core.milvus_store import get_milvus_client; print\\('milvus_store OK'\\)\")",
+      "Bash(python -c \"from src.core.smart_router import SmartRouter, DocumentClassifier; from src.core.retriever import MultiCollectionRetriever; from src.core.document_loader import DocumentProcessor; from src.core.rag_chain import RAGChain; from src.cli.main import main; print\\('All imports OK'\\)\")",
+      "Bash(python -c \"from src.api.app import app; print\\('FastAPI app:', app.title\\); print\\('Routes:', [r.path for r in app.routes]\\)\")",
+      "Bash(python -c \"from src.api.metrics import rag_query_total, rag_retrieve_docs_count, milvus_connection_status; print\\('Metrics OK'\\)\")",
+      "Bash(python -c \"from src.api.logging_setup import get_logger; log = get_logger\\('test'\\); log.info\\('hello'\\)\")",
+      "Bash(rtk pip *)",
+      "Bash(python -c \"from src.api.metrics import rag_query_total; print\\('Metrics OK'\\)\")",
+      "Bash(python -c \"from src.api.logging_setup import get_logger; print\\('Logging OK'\\)\")",
+      "Bash(python -c \"from src.api.app import app; print\\('App OK, routes:', len\\(app.routes\\)\\)\")",
+      "Bash(python -c \"from src.api.app import app; print\\('App with tracing OK, routes:', [r.path for r in app.routes]\\)\")",
+      "Bash(rtk pytest *)",
+      "Bash(python \"C:\\\\Users\\\\10349\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\superpowers\\\\6.0.3\\\\skills\\\\subagent-driven-development\\\\scripts\\\\task-brief\" \"docs/superpowers/plans/2026-07-02-hybrid-search.md\" 1)",
+      "Bash(python -c \"from src.core.milvus_store import SimpleMilvusStore, _rrf_fusion; print\\('OK'\\)\")",
+      "Bash(python -c \"from src.core.document_loader import DocumentProcessor; print\\('OK'\\)\")",
+      "Bash(rtk read *)",
+      "Bash(python -c \"from src.api.routes.documents import router, BatchUploadResponse; print\\('OK'\\)\")",
+      "Bash(python -c \"from src.api.routes.documents import router; print\\('OK'\\)\")",
+      "Bash(rtk wc *)"
     ]
   }
 }

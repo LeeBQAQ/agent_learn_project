@@ -1,6 +1,6 @@
 import uuid
 from typing import Optional
-from fastapi import APIRouter, UploadFile, File, Form, Depends
+from fastapi import APIRouter, BackgroundTasks, UploadFile, File, Form, Depends
 from pydantic import BaseModel
 from src.api.dependencies import get_config
 from src.core.config import RAGConfig
@@ -18,36 +18,49 @@ class UploadResponse(BaseModel):
     status: str
 
 
-@router.post("/documents/upload", response_model=UploadResponse)
-async def upload_document(
-    file: UploadFile = File(...),
+class BatchUploadResponse(BaseModel):
+    total: int
+    results: list[UploadResponse]
+
+
+def _process_document(text: str, filename: str, doc_id: str, collection: str | None, config: RAGConfig) -> None:
+    """后台处理：分类 → 分块 → 向量化 → 存入 Milvus"""
+    processor = DocumentProcessor(config)
+
+    docs = processor.load_documents([text], [{"source": filename, "id": doc_id}])
+    classified = processor.classify_and_store(docs, collection or "default")
+
+    for coll_key, doc_list in classified.items():
+        chunks = processor.split_documents(doc_list)
+        coll_config = config.get_collection_config(coll_key)
+        processor.create_vector_store(chunks, coll_config.name)
+
+
+@router.post("/documents/upload", response_model=BatchUploadResponse)
+def upload_document(
+    background_tasks: BackgroundTasks,
+    files: list[UploadFile] = File(...),
     collection: Optional[str] = Form(None),
     config: RAGConfig = Depends(get_config),
 ):
-    content = await file.read()
-    text = content.decode("utf-8", errors="replace")
-    doc_id = str(uuid.uuid4())[:8]
+    results: list[UploadResponse] = []
 
-    processor = DocumentProcessor(config)
-    docs = processor.load_documents([text], [{"source": file.filename, "id": doc_id}])
-    classified = processor.classify_and_store(docs, collection or "default")
+    for file in files:
+        content = file.file.read()
+        text = content.decode("utf-8", errors="replace")
+        doc_id = str(uuid.uuid4())[:8]
 
-    chunk_count = 0
-    target_collection = collection or "default"
-    for coll_key, doc_list in classified.items():
-        chunks = processor.split_documents(doc_list)
-        chunk_count = len(chunks)
-        coll_config = config.get_collection_config(coll_key)
-        processor.create_vector_store(chunks, coll_config.name)
-        target_collection = coll_key
+        background_tasks.add_task(_process_document, text, file.filename or "unknown", doc_id, collection, config)
 
-    return UploadResponse(
-        document_id=doc_id,
-        filename=file.filename or "unknown",
-        collection=target_collection,
-        chunk_count=chunk_count,
-        status="indexed",
-    )
+        results.append(UploadResponse(
+            document_id=doc_id,
+            filename=file.filename or "unknown",
+            collection=collection or "default",
+            chunk_count=0,
+            status="processing",
+        ))
+
+    return BatchUploadResponse(total=len(results), results=results)
 
 
 @router.get("/documents")
@@ -70,8 +83,9 @@ def delete_document(document_id: str, config: RAGConfig = Depends(get_config)):
     deleted = False
     for coll_config in config.collections.values():
         try:
-            client.delete(coll_config.name, filter=f'source like "%{document_id}%"')
-            deleted = True
+            if client.has_collection(coll_config.name):
+                client.delete(coll_config.name, filter=f'source like "%{document_id}%"')
+                deleted = True
         except Exception:
             pass
     return {"document_id": document_id, "deleted": deleted}

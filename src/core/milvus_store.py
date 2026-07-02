@@ -43,6 +43,60 @@ class SimpleMilvusStore:
 
         return retriever
 
+    def bm25_search(self, query: str, k: int = 3) -> List[Document]:
+        """BM25 关键词检索（Milvus TEXT_MATCH）"""
+        try:
+            results = self.client.query(
+                collection_name=self.collection_name,
+                filter=f'TEXT_MATCH("text", "{query}")',
+                output_fields=["text", "source"],
+                limit=k,
+            )
+            docs = []
+            for entity in results:
+                docs.append(Document(
+                    page_content=entity.get("text", ""),
+                    metadata={"source": entity.get("source", ""), "score": 0.0},
+                ))
+            return docs
+        except Exception as e:
+            print(f"Warning: BM25 检索失败: {e}")
+            return []
+
+    def hybrid_search(self, query: str, k: int = 3) -> List[Document]:
+        """混合检索：向量 + BM25 + RRF 融合"""
+        fetch_k = k * 2
+
+        vector_docs = self.similarity_search(query, k=fetch_k)
+        bm25_docs = self.bm25_search(query, k=fetch_k)
+
+        return _rrf_fusion(vector_docs, bm25_docs, k=60, top_k=k)
+
+
+def _rrf_fusion(
+    vector_docs: List[Document],
+    bm25_docs: List[Document],
+    k: int = 60,
+    top_k: int = 3,
+) -> List[Document]:
+    """RRF (Reciprocal Rank Fusion) 融合两路检索结果"""
+    scores: dict[str, float] = {}
+    doc_map: dict[str, Document] = {}
+
+    for rank, doc in enumerate(vector_docs, start=1):
+        key = doc.page_content
+        scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)
+        doc_map[key] = doc
+
+    for rank, doc in enumerate(bm25_docs, start=1):
+        key = doc.page_content
+        scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)
+        if key not in doc_map:
+            doc_map[key] = doc
+
+    sorted_keys = sorted(scores, key=scores.get, reverse=True)
+    return [doc_map[key] for key in sorted_keys[:top_k]]
+
 
 def get_milvus_client(config: RAGConfig) -> MilvusClient:
     """创建 Milvus 客户端"""

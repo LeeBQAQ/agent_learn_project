@@ -1,10 +1,12 @@
 import time
+import uuid
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from src.api.dependencies import get_rag_chain
+from src.api.dependencies import get_rag_chain, get_session_store
 from src.core.rag_chain import RAGChain
+from src.core.session_store import SessionStore
 
 router = APIRouter(tags=["query"])
 
@@ -19,6 +21,7 @@ class QueryRequest(BaseModel):
     chat_history: list[ChatMessage] | None = None
     top_k: int | None = None
     collections: list[str] | None = None
+    session_id: str | None = None  # 新增
 
 
 class SourceItem(BaseModel):
@@ -32,16 +35,33 @@ class QueryResponse(BaseModel):
     sources: list[SourceItem]
     confidence: float
     latency_ms: float
+    session_id: str | None = None  # 新增
 
 
 @router.post("/query", response_model=QueryResponse)
-def rag_query(req: QueryRequest, rag: RAGChain = Depends(get_rag_chain)):
+def rag_query(
+    req: QueryRequest,
+    rag: RAGChain = Depends(get_rag_chain),
+    store: SessionStore = Depends(get_session_store),
+):
     start = time.perf_counter()
+
+    # 解析 session_id
+    session_id = req.session_id or str(uuid.uuid4())
+
+    # 从 SessionStore 获取历史
     chat_history = None
     if req.chat_history:
         chat_history = [{"role": m.role, "content": m.content} for m in req.chat_history]
+    elif session_id:
+        chat_history = store.get_history(session_id)
+
     result = rag.query(req.query, chat_history=chat_history)
     latency_ms = (time.perf_counter() - start) * 1000
+
+    # 保存当前轮次到 SessionStore
+    store.add_round(session_id, "user", req.query)
+    store.add_round(session_id, "assistant", result.get("answer", ""))
 
     sources = [
         SourceItem(
@@ -55,4 +75,5 @@ def rag_query(req: QueryRequest, rag: RAGChain = Depends(get_rag_chain)):
         sources=sources,
         confidence=result.get("confidence", 0.0),
         latency_ms=round(latency_ms, 1),
+        session_id=session_id,
     )

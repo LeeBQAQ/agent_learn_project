@@ -20,6 +20,8 @@ class SimpleMilvusStore:
     def similarity_search(self, query: str, k: int | None = None) -> list[Document]:
         """相似度搜索"""
         k = k or (self.config.top_k if self.config else 3)
+        if not self.client.has_collection(self.collection_name):
+            return []
         query_embedding = self.embeddings.embed_query(query)
         results = self.client.search(
             collection_name=self.collection_name,
@@ -52,6 +54,8 @@ class SimpleMilvusStore:
     def bm25_search(self, query: str, k: int = 3) -> list[Document]:
         """BM25 关键词检索（Milvus TEXT_MATCH）"""
         try:
+            if not self.client.has_collection(self.collection_name):
+                return []
             safe_query = query.replace("\\", "\\\\").replace('"', '\\"')
             results = self.client.query(
                 collection_name=self.collection_name,

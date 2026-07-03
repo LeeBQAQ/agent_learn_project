@@ -41,6 +41,18 @@ class Generator:
         chain = self.rag_prompt | self.model | StrOutputParser()
         return chain.invoke({"query": query, "context": context, "chat_history": messages})
 
+    def generate_chat(self, query: str, chat_history: list[dict[str, str]] = None) -> str:
+        """无知识库时直接用大模型回答"""
+        messages = []
+        if chat_history:
+            for msg in chat_history:
+                if msg["role"] == "user":
+                    messages.append(HumanMessage(content=msg["content"]))
+                else:
+                    messages.append(AIMessage(content=msg["content"]))
+        chain = TemplateLibrary.CHAT_PROMPT | self.model | StrOutputParser()
+        return chain.invoke({"query": query, "chat_history": messages})
+
     def evaluate_confidence(self, query: str, context: str, answer: str) -> float:
         """评估回答置信度"""
         chain = self.eval_prompt | self.model | StrOutputParser()

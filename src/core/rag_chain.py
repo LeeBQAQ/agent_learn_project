@@ -3,6 +3,7 @@ from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 
+from src.api.logging_setup import get_logger
 from src.api.metrics import rag_query_latency_seconds, rag_query_total, rag_retrieve_docs_count
 from src.core.config import RAGConfig
 from src.core.embeddings import get_embeddings
@@ -46,7 +47,7 @@ class RAGChain:
                     docs = self.retriever.retrieve(query, self.embeddings, collection_key=coll_key)
                     all_docs.extend(docs)
                 except Exception as e:
-                    print(f"Warning: 从集合 '{coll_key}' 检索失败: {e}")
+                    get_logger("rag_chain").warning("检索集合失败", collection=coll_key, error=str(e))
 
             seen = set()
             unique_docs = []
@@ -72,9 +73,15 @@ class RAGChain:
             return state
 
         def generate_answer(state: RAGState) -> RAGState:
-            state["answer"] = self.generator.generate(
-                query=state["query"], context=state["context"], chat_history=state.get("chat_history", [])
-            )
+            if state["context"]:
+                state["answer"] = self.generator.generate(
+                    query=state["query"], context=state["context"], chat_history=state.get("chat_history", [])
+                )
+            else:
+                # 检索无结果时直接用大模型回答，不走 RAG 约束
+                state["answer"] = self.generator.generate_chat(
+                    query=state["query"], chat_history=state.get("chat_history", [])
+                )
             return state
 
         def evaluate_response(state: RAGState) -> RAGState:

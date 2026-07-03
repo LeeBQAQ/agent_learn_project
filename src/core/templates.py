@@ -75,6 +75,14 @@ class TemplateLibrary:
         ]
     )
 
+    CHAT_PROMPT = ChatPromptTemplate.from_messages(
+        [
+            ("system", "你是一个专业的智能助手。请根据你的知识直接回答用户的问题，回答要准确、简洁。"),
+            MessagesPlaceholder(variable_name="chat_history", optional=True),
+            ("human", "{query}"),
+        ]
+    )
+
     DOCUMENT_CLASSIFIER_PROMPT = ChatPromptTemplate.from_messages(
         [
             (

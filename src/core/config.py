@@ -43,6 +43,9 @@ class RAGConfig:
     # 混合检索配置
     hybrid_search: bool = False
 
+    # 启动初始化
+    eager_init: bool = True
+
     # 会话记忆配置
     redis_uri: str = field(default_factory=lambda: os.getenv("REDIS_URI", "redis://localhost:6379/0"))
     sqlserver_conn: str = field(default_factory=lambda: os.getenv("SQLSERVER_CONN", ""))

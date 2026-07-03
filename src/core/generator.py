@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 
@@ -52,6 +54,23 @@ class Generator:
                     messages.append(AIMessage(content=msg["content"]))
         chain = TemplateLibrary.CHAT_PROMPT | self.model | StrOutputParser()
         return chain.invoke({"query": query, "chat_history": messages})
+
+    def stream_generate(self, query: str, context: str, chat_history: list[dict[str, str]] = None) -> Iterator[str]:
+        """流式生成，逐 token yield"""
+        messages = []
+        if chat_history:
+            for msg in chat_history:
+                if msg["role"] == "user":
+                    messages.append(HumanMessage(content=msg["content"]))
+                else:
+                    messages.append(AIMessage(content=msg["content"]))
+
+        prompt = self.rag_prompt if context else TemplateLibrary.CHAT_PROMPT
+        chain = prompt | self.model
+
+        for chunk in chain.stream({"query": query, "context": context, "chat_history": messages}):
+            if chunk.content:
+                yield chunk.content
 
     def evaluate_confidence(self, query: str, context: str, answer: str) -> float:
         """评估回答置信度"""

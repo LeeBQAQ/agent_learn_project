@@ -1,7 +1,9 @@
+import json as _json
 import time
 import uuid
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from src.api.dependencies import get_rag_chain, get_session_store
@@ -76,4 +78,39 @@ def rag_query(
         confidence=result.get("confidence", 0.0),
         latency_ms=round(latency_ms, 1),
         session_id=session_id,
+    )
+
+
+@router.post("/query/stream")
+async def rag_query_stream(
+    req: QueryRequest,
+    rag: RAGChain = Depends(get_rag_chain),
+    store: SessionStore = Depends(get_session_store),
+):
+    session_id = req.session_id or str(uuid.uuid4())
+
+    chat_history = None
+    if req.chat_history:
+        chat_history = [{"role": m.role, "content": m.content} for m in req.chat_history]
+    elif session_id:
+        chat_history = store.get_history(session_id)
+
+    def generate():
+        full_answer = ""
+        for event_type, data in rag.stream_query(req.query, chat_history=chat_history):
+            yield f"event: {event_type}\ndata: {data}\n\n"
+            if event_type == "token":
+                content = _json.loads(data).get("content", "")
+                full_answer += content
+            elif event_type == "error":
+                break
+
+        if full_answer:
+            store.add_round(session_id, "user", req.query)
+            store.add_round(session_id, "assistant", full_answer)
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
     )

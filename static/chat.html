@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG Chat - Optimized</title>
+<style>
+/* ==================== 全局基础样式 ==================== */
+:root {
+  --bg-dark: #1a1a2e;
+  --bg-panel: #16213e;
+  --bg-input: #0f3460;
+  --accent: #e94560;
+  --text-main: #eee;
+  --text-sub: #888;
+  --border: #2a3b5c;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-dark);
+  color: var(--text-main);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* 防止整体滚动 */
+}
+
+/* ==================== 头部 ==================== */
+.header {
+  background: var(--bg-panel);
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  z-index: 10;
+}
+.header h1 { font-size: 18px; color: var(--accent); font-weight: 600; letter-spacing: 0.5px; }
+
+/* ==================== 聊天区域 ==================== */
+.chat-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  scroll-behavior: smooth;
+}
+
+/* 消息气泡 */
+.msg {
+  max-width: 85%;
+  padding: 14px 18px;
+  border-radius: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  position: relative;
+  animation: slideUp 0.3s ease-out;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+@keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+.msg.user {
+  align-self: flex-end;
+  background: linear-gradient(135deg, #0f3460 0%, #1a4a7a 100%);
+  border-bottom-right-radius: 2px;
+  color: #fff;
+}
+.msg.ai {
+  align-self: flex-start;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 2px;
+}
+.msg .role-label {
+  font-size: 11px;
+  font-weight: bold;
+  margin-bottom: 6px;
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.msg.user .role-label { color: #aaccff; text-align: right; }
+.msg.ai .role-label { color: var(--accent); }
+.msg .content { font-size: 14px; }
+.msg .sources {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  font-size: 12px;
+  color: var(--text-sub);
+}
+.msg .sources strong { color: var(--accent); }
+
+/* ==================== 状态栏 ==================== */
+.status-bar {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-sub);
+  padding: 8px;
+  background: rgba(22, 33, 62, 0.6);
+  border-top: 1px solid rgba(42, 59, 92, 0.3);
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.spinner {
+  width: 12px; height: 12px;
+  border: 2px solid rgba(233, 69, 96, 0.3);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ==================== 底部控制区 (核心修改) ==================== */
+.control-panel {
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 20; /* 确保下拉框在聊天内容之上 */
+}
+
+/* 第一行：上传 + 集合选择器 */
+.top-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* 上传按钮 */
+.upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: 1px dashed var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+  background: rgba(233, 69, 96, 0.05);
+}
+.upload-btn:hover { background: rgba(233, 69, 96, 0.15); border-style: solid; }
+#fileInput { display: none; }
+
+/* ✅ 全新自定义集合选择器 (替代 datalist) */
+.collection-selector {
+  position: relative;
+  width: 220px;
+  z-index: 100; /* 最高层级，防止被遮挡 */
+}
+
+/* 输入框样式 */
+.coll-input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  transition: all 0.2s;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+}
+.coll-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(233, 69, 96, 0.2);
+}
+.coll-input::placeholder { color: #555; }
+
+/* 下拉菜单容器 */
+.coll-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  display: none; /* 默认隐藏 */
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+  padding: 4px 0;
+}
+.coll-dropdown.active { display: block; }
+
+/* 下拉选项 */
+.coll-option {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #ccc;
+  cursor: pointer;
+  transition: background 0.15s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.coll-option:hover { background: var(--bg-input); color: #fff; }
+.coll-option.selected { color: var(--accent); font-weight: 600; background: rgba(233, 69, 96, 0.1); }
+.coll-option .hint { font-size: 11px; opacity: 0.6; }
+
+/* 已选文件标签 */
+.file-tag {
+  font-size: 12px;
+  background: var(--bg-input);
+  padding: 6px 12px;
+  border-radius: 6px;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+}
+.file-tag .del { cursor: pointer; color: var(--accent); font-weight: bold; padding: 0 4px; }
+
+/* 集合快捷标签栏 */
+.quick-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-sub);
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.quick-tags::-webkit-scrollbar { height: 0; }
+.tag-item {
+  background: rgba(42, 59, 92, 0.4);
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.tag-item:hover { border-color: var(--accent); color: #fff; }
+
+/* ==================== 输入发送区 ==================== */
+.input-area {
+  display: flex;
+  gap: 12px;
+  background: var(--bg-panel);
+  padding: 0 24px 20px 24px;
+}
+.input-wrapper {
+  flex: 1;
+  position: relative;
+}
+#queryInput {
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-dark);
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s;
+}
+#queryInput:focus { border-color: var(--accent); }
+#sendBtn {
+  padding: 0 28px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(233, 69, 96, 0.3);
+}
+#sendBtn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(233, 69, 96, 0.4); }
+#sendBtn:active:not(:disabled) { transform: translateY(0); }
+#sendBtn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+
+/* 滚动条美化 */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a3b5c; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3a4b6c; }
+</style>
+</head>
+<body>
+
+<!-- 头部 -->
+<div class="header">
+  <h1>🤖 RAG Chat</h1>
+</div>
+
+<!-- 聊天内容区 -->
+<div class="chat-container" id="chatContainer"></div>
+
+<!-- 状态栏 -->
+<div class="status-bar" id="statusBar">就绪</div>
+
+<!-- 底部控制面板 -->
+<div class="control-panel">
+
+  <!-- 上传与集合选择行 -->
+  <div class="top-controls">
+    <label class="upload-btn" for="fileInput">
+      📁 上传文档到
+    </label>
+    <input type="file" id="fileInput" multiple accept=".txt,.md,.csv,.pdf,.py,.json" onchange="handleFileUpload()">
+
+    <!-- ✅ 核心：自定义集合选择器 (可输入+可选) -->
+    <div class="collection-selector" id="collSelector">
+      <input
+        type="text"
+        id="collInput"
+        class="coll-input"
+        value="default"
+        placeholder="输入或选择集合..."
+        autocomplete="off"
+        onfocus="openDropdown()"
+        oninput="filterCollections(this.value)"
+        onblur="syncCollectionValue()"
+      >
+      <div class="coll-dropdown" id="collDropdown"></div>
+    </div>
+
+    <!-- 已选文件显示 -->
+    <span class="file-tag" id="fileTag">
+      <span class="name"></span>
+      <span class="del" onclick="clearSelectedFile()" title="移除文件">✕</span>
+    </span>
+  </div>
+
+  <!-- 集合快捷标签 -->
+  <div class="quick-tags" id="quickTags">
+    <span style="color:var(--accent); font-weight:600;"> 集合:</span>
+    <!-- 动态生成 -->
+  </div>
+
+</div>
+
+<!-- 输入发送行 -->
+<div class="input-area">
+  <div class="input-wrapper">
+    <input id="queryInput" placeholder="输入问题，按 Enter 发送..." onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendMessage()}">
+  </div>
+  <button id="sendBtn" onclick="sendMessage()">发送</button>
+</div>
+
+<script>
+// ==================== 全局状态 ====================
+let sessionId = null;
+let currentCollection = "default"; // 当前实际使用的集合名
+let allCollectionsData = []; // 缓存API返回的集合列表
+
+// ==================== 自定义集合选择器逻辑 ====================
+const collInput = document.getElementById('collInput');
+const collDropdown = document.getElementById('collDropdown');
+
+// 打开下拉框
+function openDropdown() {
+  collInput.select();
+  filterCollections("");
+  collDropdown.classList.add('active');
+}
+
+// 过滤并渲染下拉选项
+function filterCollections(keyword) {
+  const lowerKey = keyword.toLowerCase().trim();
+  const filtered = allCollectionsData.filter(c => c.key.toLowerCase().includes(lowerKey));
+
+  collDropdown.innerHTML = '';
+
+  // 如果没有匹配项且用户输入了内容，提示创建新集合
+  if (filtered.length === 0 && lowerKey) {
+    const createItem = document.createElement('div');
+    createItem.className = 'coll-option selected'; // 高亮显示
+    createItem.innerHTML = `<span>✨ 使用新集合: "${keyword.trim()}"</span>`;
+    createItem.onclick = () => selectCollection(keyword.trim());
+    collDropdown.appendChild(createItem);
+  } else {
+    // 渲染匹配到的集合
+    filtered.forEach(c => {
+      const item = document.createElement('div');
+      item.className = 'coll-option';
+      if (c.key === currentCollection) item.classList.add('selected');
+      item.innerHTML = `<span>${c.key}</span><span class="hint">${c.top_k || ''}</span>`;
+      item.onclick = () => selectCollection(c.key);
+      collDropdown.appendChild(item);
+    });
+  }
+
+  if (filtered.length > 0 || lowerKey) {
+    collDropdown.classList.add('active');
+  } else {
+    collDropdown.classList.remove('active');
+  }
+}
+
+// 选中集合
+function selectCollection(key) {
+  currentCollection = key;
+  collInput.value = key;
+  collDropdown.classList.remove('active');
+  updateQuickTagsHighlight();
+}
+
+// 失焦同步值 (防止用户手动输入后未点选)
+function syncCollectionValue() {
+  setTimeout(() => { // 延迟执行，避免点击选项时先触发blur
+    const val = collInput.value.trim();
+    if (val) {
+      currentCollection = val;
+      // 如果输入的值不在列表中，也允许使用（作为新集合）
+    } else {
+      collInput.value = currentCollection; // 恢复为当前有效值
+    }
+    collDropdown.classList.remove('active');
+  }, 200);
+}
+
+// 更新底部标签高亮
+function updateQuickTagsHighlight() {
+  document.querySelectorAll('.tag-item').forEach(tag => {
+    tag.style.borderColor = tag.dataset.val === currentCollection ? 'var(--accent)' : 'transparent';
+    tag.style.color = tag.dataset.val === currentCollection ? '#fff' : '';
+  });
+}
+
+// 点击外部关闭下拉框
+document.addEventListener('click', (e) => {
+  if (!document.getElementById('collSelector').contains(e.target)) {
+    collDropdown.classList.remove('active');
+  }
+});
+
+// ==================== 业务逻辑 ====================
+
+// 初始化加载集合
+async function initCollections() {
+  try {
+    // ⚠️ 请确保此API路径正确
+    const resp = await fetch("/api/v1/collections");
+    if (!resp.ok) throw new Error('Network error');
+    const data = await resp.json();
+
+    if (Array.isArray(data)) {
+      allCollectionsData = data;
+      filterCollections("");
+      renderQuickTags(data);
+
+      // 如果当前输入框的值不在列表中，保持原样（可能是用户想新建的）
+      // 如果在列表中，确保选中状态正确
+      const exists = data.some(c => c.key === collInput.value);
+      if (!exists && data.length > 0) {
+        // 可选：自动切换到第一个集合，或者保持用户输入
+        // selectCollection(data[0].key);
+      }
+    }
+  } catch (e) {
+    console.warn("加载集合失败，使用默认值:", e);
+    // 失败时至少显示 default
+    renderQuickTags([{key: 'default', top_k: 3}]);
+  }
+}
+
+// 渲染底部快捷标签
+function renderQuickTags(collections) {
+  const container = document.getElementById('quickTags');
+  container.innerHTML = '<span style="color:var(--accent); font-weight:600;">📚 集合:</span>';
+
+  collections.forEach(c => {
+    const tag = document.createElement('span');
+    tag.className = 'tag-item';
+    tag.dataset.val = c.key;
+    tag.textContent = c.key;
+    tag.onclick = () => selectCollection(c.key);
+    container.appendChild(tag);
+  });
+  updateQuickTagsHighlight();
+}
+
+// 添加消息到聊天区
+function appendMessage(role, text, sources = null) {
+  const container = document.getElementById('chatContainer');
+  const msgDiv = document.createElement('div');
+  msgDiv.className = `msg ${role}`;
+
+  let html = `<div class="role-label">${role === 'user' ? '👤 你' : '🤖 AI'}</div>`;
+  html += `<div class="content">${escapeHtml(text)}</div>`;
+
+  if (sources && sources.length > 0) {
+    html += `<div class="sources"><strong> 参考来源:</strong> ${sources.map(s => escapeHtml(s.source)).join(', ')}</div>`;
+  }
+
+  msgDiv.innerHTML = html;
+  container.appendChild(msgDiv);
+  container.scrollTop = container.scrollHeight;
+  return msgDiv; // 返回元素引用以便流式更新
+}
+
+// HTML转义防XSS
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[m]));
+}
+
+// 文件上传处理
+function handleFileUpload() {
+  const input = document.getElementById('fileInput');
+  if (!input.files.length) return;
+
+  // ✅ 关键：上传前再次确认集合名
+  const targetColl = collInput.value.trim() || currentCollection;
+  currentCollection = targetColl; // 同步全局状态
+
+  const form = new FormData();
+  Array.from(input.files).forEach(f => form.append('files', f));
+  form.append('collection', targetColl);
+
+  setStatus('<span class="spinner"></span> 正在上传...');
+
+  fetch("/api/v1/documents/upload", { method: "POST", body: form })
+    .then(r => r.json())
+    .then(data => {
+      setStatus(`✅ 成功上传 ${data.total} 个文件到 [${targetColl}]`);
+      const tag = document.getElementById('fileTag');
+      tag.querySelector('.name').textContent = Array.from(input.files).map(f=>f.name).join(', ');
+      tag.style.display = 'inline-flex';
+      // 上传成功后刷新集合列表（可能新增了集合）
+      setTimeout(initCollections, 1000);
+    })
+    .catch(e => setStatus(`❌ 上传失败: ${e.message}`));
+
+  input.value = ''; // 清空input以便重复选择同一文件
+}
+
+function clearSelectedFile() {
+  document.getElementById('fileInput').value = '';
+  document.getElementById('fileTag').style.display = 'none';
+}
+
+// 发送消息
+async function sendMessage() {
+  const input = document.getElementById('queryInput');
+  const query = input.value.trim();
+  if (!query) return;
+
+  // ✅ 关键：发送前再次确认集合名
+  const targetColl = collInput.value.trim() || currentCollection;
+  currentCollection = targetColl;
+
+  input.value = '';
+  input.disabled = true;
+  document.getElementById('sendBtn').disabled = true;
+  setStatus('<span class="spinner"></span> AI 思考中...');
+
+  appendMessage('user', query);
+
+  // 创建AI消息占位符
+  const aiMsg = appendMessage('ai', '');
+  const contentEl = aiMsg.querySelector('.content');
+  const sourcesEl = aiMsg.querySelector('.sources') || (() => {
+    const div = document.createElement('div');
+    div.className = 'sources';
+    aiMsg.appendChild(div);
+    return div;
+  })();
+
+  let fullText = '';
+
+  try {
+    const resp = await fetch("/api/v1/query/stream", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        query: query,
+        session_id: sessionId,
+        collection: currentCollection // ✅ 传递正确的集合参数
+      })
+    });
+
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop();
+
+      for (const part of parts) {
+        if (!part.trim()) continue;
+        const lines = part.split('\n');
+        const evtLine = lines.find(l => l.startsWith('event: '));
+        const dataLine = lines.find(l => l.startsWith('data: '));
+
+        if (!evtLine || !dataLine) continue;
+
+        const event = evtLine.replace('event: ', '').trim();
+        try {
+          const data = JSON.parse(dataLine.replace('data: ', '').trim());
+
+          if (event === 'token') {
+            fullText += data.content;
+            contentEl.textContent = fullText;
+            document.getElementById('chatContainer').scrollTop = document.getElementById('chatContainer').scrollHeight;
+          } else if (event === 'sources') {
+            sourcesEl.innerHTML = `<strong>📖 参考来源:</strong> ${data.map(s => escapeHtml(s.source)).join(', ')}`;
+          } else if (event === 'done') {
+            sessionId = sessionId || data.session_id;
+            const conf = data.confidence ? ` | 置信度: ${(data.confidence*100).toFixed(0)}%` : '';
+            setStatus(`✅ 完成${conf}`);
+          } else if (event === 'error') {
+            contentEl.textContent += `\n\n[❌ ${escapeHtml(data.message)}]`;
+            setStatus('❌ 出错了');
+          }
+        } catch (parseErr) {
+          console.warn('SSE Parse Error:', parseErr);
+        }
+      }
+    }
+  } catch (e) {
+    contentEl.textContent += `\n\n[❌ 连接失败: ${escapeHtml(e.message)}]`;
+    setStatus('❌ 连接失败');
+  } finally {
+    input.disabled = false;
+    document.getElementById('sendBtn').disabled = false;
+    input.focus();
+  }
+}
+
+function setStatus(html) {
+  document.getElementById('statusBar').innerHTML = html;
+}
+
+// 启动初始化
+setTimeout(initCollections, 100);
+
+</script>
+</body>
+</html>

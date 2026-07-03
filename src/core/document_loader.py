@@ -46,7 +46,9 @@ class DocumentProcessor:
             classified.setdefault(collection, []).append(doc)
         return classified
 
-    def create_vector_store(self, documents: list[Document], milvus_collection: str) -> SimpleMilvusStore:
+    def create_vector_store(
+        self, documents: list[Document], milvus_collection: str, doc_id: str = ""
+    ) -> SimpleMilvusStore:
         texts = [doc.page_content for doc in documents]
         sources = [doc.metadata.get("source", "") for doc in documents]
         vectors = self.embeddings.embed_documents(texts)
@@ -63,11 +65,14 @@ class DocumentProcessor:
                 metric_type="COSINE",
                 auto_id=False,
                 max_length=65535,
+                enable_dynamic_field=True,
             )
-            if self.config.hybrid_search:
-                create_params["enable_dynamic_field"] = True
             client.create_collection(**create_params)
-        data = [{"id": str(i), "vector": vec, "text": texts[i], "source": sources[i]} for i, vec in enumerate(vectors)]
+        data = [
+            {"id": f"{doc_id}_{i}", "vector": vec, "text": texts[i], "source": sources[i],
+             "doc_id": doc_id, "chunk_index": i}
+            for i, vec in enumerate(vectors)
+        ]
         client.insert(collection_name=milvus_collection, data=data)
         return SimpleMilvusStore(client, milvus_collection, self.embeddings, self.config)
 
@@ -80,5 +85,6 @@ class DocumentProcessor:
         for collection_key, docs in classified.items():
             coll_config = self.config.get_collection_config(collection_key)
             chunks = self.split_documents(docs)
-            vector_stores[collection_key] = self.create_vector_store(chunks, coll_config.name)
+            did = next((c.metadata.get("id", "") for c in chunks if c.metadata.get("id")), "")
+            vector_stores[collection_key] = self.create_vector_store(chunks, coll_config.name, doc_id=did)
         return vector_stores

@@ -1,4 +1,5 @@
 import os
+from functools import lru_cache
 
 if not os.getenv("HF_ENDPOINT"):
     os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
@@ -6,12 +7,9 @@ if not os.getenv("HF_ENDPOINT"):
 from langchain_huggingface import HuggingFaceEmbeddings
 
 
-def _get_local_embeddings():
-    return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
-
+@lru_cache
 def get_embeddings():
-    """根据环境选择合适的 Embeddings 模型"""
+    """根据环境选择合适的 Embeddings 模型（单例缓存，避免重复加载）"""
     if os.getenv("EMBEDDING_API_KEY"):
         try:
             from langchain_openai import OpenAIEmbeddings
@@ -19,4 +17,4 @@ def get_embeddings():
             return OpenAIEmbeddings(model="text-embedding-ada-002")
         except ImportError:
             raise ImportError("请安装 langchain_openai")
-    return _get_local_embeddings()
+    return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")

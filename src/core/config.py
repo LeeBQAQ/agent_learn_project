@@ -1,4 +1,5 @@
 import os
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -20,6 +21,18 @@ class CollectionConfig:
     top_k: int = 3
     metric_type: str = "COSINE"
     auto_id: bool = False
+
+
+def sanitize_collection_name(name: str) -> str:
+    """确保名称合法：仅字母数字下划线"""
+    name = re.sub(r"[^a-zA-Z0-9_]", "_", name)
+    name = name[:255].strip("_")
+    return name or "default"
+
+
+def _collection_name_to_key(name: str) -> str:
+    """Milvus collection name → 简短 key，用于路由"""
+    return name.replace("_docs", "").replace("rag_", "")
 
 
 @dataclass
@@ -60,15 +73,8 @@ class RAGConfig:
     milvus_token: str | None = field(default_factory=lambda: os.getenv("MILVUS_TOKEN"))
     milvus_db_name: str = field(default_factory=lambda: os.getenv("MILVUS_DB_NAME", "default"))
 
-    # 多集合配置
-    collections: dict[str, CollectionConfig] = field(
-        default_factory=lambda: {
-            "default": CollectionConfig(name="rag_documents", description="默认文档集合，存放通用知识", top_k=3),
-            "programming": CollectionConfig(name="programming_docs", description="编程语言和技术文档", top_k=3),
-            "ai_ml": CollectionConfig(name="ai_ml_docs", description="人工智能和机器学习相关文档", top_k=3),
-            "frameworks": CollectionConfig(name="framework_docs", description="开发框架和工具文档", top_k=3),
-        }
-    )
+    # 多集合配置（启动时从 Milvus 自动同步）
+    collections: dict[str, CollectionConfig] = field(default_factory=dict)
 
     def get_milvus_connection_params(self) -> dict:
         params = {"uri": self.milvus_uri}
@@ -78,9 +84,38 @@ class RAGConfig:
             params["db_name"] = self.milvus_db_name
         return params
 
+    def ensure_default_collection(self) -> str:
+        """确保 default 集合存在，返回其 key"""
+        if "default" not in self.collections:
+            self.collections["default"] = CollectionConfig(
+                name="rag_documents", description="默认文档集合", top_k=3
+            )
+        return "default"
+
+    def sync_collections(self, client) -> list[str]:
+        """从 Milvus 同步实际存在的集合到内存，返回新增的 key 列表"""
+        added = []
+        self.ensure_default_collection()
+        for coll_name in client.list_collections():
+            key = _collection_name_to_key(coll_name)
+            if key not in self.collections:
+                self.collections[key] = CollectionConfig(name=coll_name, description="")
+                added.append(key)
+        return added
+
+    def register_collection(self, key: str, name: str, description: str = "") -> None:
+        """注册新集合到内存"""
+        if key not in self.collections:
+            self.collections[key] = CollectionConfig(name=name, description=description)
+
+    def has_collection(self, key: str) -> bool:
+        return key in self.collections
+
     def get_collection_config(self, collection_key: str = "default") -> CollectionConfig:
         if collection_key not in self.collections:
-            raise ValueError(f"Collection '{collection_key}' 不存在，可用: {list(self.collections.keys())}")
+            self.ensure_default_collection()
+            if collection_key not in self.collections:
+                raise ValueError(f"Collection '{collection_key}' 不存在，可用: {list(self.collections.keys())}")
         return self.collections[collection_key]
 
     @property

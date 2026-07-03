@@ -1,7 +1,7 @@
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from src.core.config import RAGConfig
+from src.core.config import RAGConfig, _collection_name_to_key
 from src.core.embeddings import get_embeddings
 from src.core.milvus_store import SimpleMilvusStore, get_milvus_client
 from src.core.smart_router import DocumentClassifier
@@ -68,6 +68,9 @@ class DocumentProcessor:
                 enable_dynamic_field=True,
             )
             client.create_collection(**create_params)
+            # 注册到配置
+            key = _collection_name_to_key(milvus_collection)
+            self.config.register_collection(key, milvus_collection)
         data = [
             {"id": f"{doc_id}_{i}", "vector": vec, "text": texts[i], "source": sources[i],
              "doc_id": doc_id, "chunk_index": i}

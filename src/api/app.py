@@ -2,7 +2,7 @@ from fastapi import FastAPI
 
 from src.api.logging_setup import get_logger, setup_logging
 from src.api.middleware import RequestLoggingMiddleware, global_exception_handler
-from src.api.routes import chat_ui, documents, health, query, sessions
+from src.api.routes import chat_ui, collections, documents, health, query, sessions
 from src.api.tracing_setup import setup_tracing
 
 
@@ -39,6 +39,13 @@ def _eager_init():
     collections = client.list_collections()
     logger.info("Milvus 就绪, %d 个集合", len(collections))
 
+    # 4. 同步 collection 列表
+    logger.info("同步 collection 列表...")
+    added = config.sync_collections(client)
+    if added:
+        logger.info("新增动态集合: %s", ", ".join(added))
+    logger.info("已注册 %d 个集合", len(config.collections))
+
 
 def create_app() -> FastAPI:
     setup_logging()
@@ -56,6 +63,7 @@ def create_app() -> FastAPI:
     app.include_router(documents.router, prefix="/api/v1")
     app.include_router(sessions.router, prefix="/api/v1")
     app.include_router(chat_ui.router)
+    app.include_router(collections.router, prefix="/api/v1")
 
     return app
 

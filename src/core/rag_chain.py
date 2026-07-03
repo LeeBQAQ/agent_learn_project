@@ -1,4 +1,6 @@
+import json
 import time
+from collections.abc import Iterator
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
@@ -128,3 +130,66 @@ class RAGChain:
             "sources": result["sources"],
             "confidence": result["confidence"],
         }
+
+    def _sse(self, event: str, data: object) -> tuple[str, str]:
+        """构造 SSE 事件元组"""
+        return (event, json.dumps(data, ensure_ascii=False))
+
+    def stream_query(self, query: str, chat_history: list[dict[str, str]] | None = None) -> Iterator[tuple[str, str]]:
+        """流式查询：手动编排 pipeline，分阶段 yield 事件"""
+        chat_history = chat_history or []
+
+        # 阶段1: 查询改写
+        if chat_history:
+            query = self.generator.rewrite_query(query, chat_history)
+
+        # 阶段2: 检索
+        yield self._sse("status", {"phase": "retrieving", "message": "正在检索相关文档..."})
+
+        collections: list[str]
+        if self.use_smart_routing and self.router:
+            collections = self.router.route_query(query)
+        else:
+            collections = ["default"]
+
+        all_docs = []
+        for coll_key in collections:
+            try:
+                docs = self.retriever.retrieve(query, self.embeddings, collection_key=coll_key)
+                all_docs.extend(docs)
+            except Exception as e:
+                yield self._sse("error", {"code": "RETRIEVAL_FAILED", "message": str(e)})
+                return
+
+        unique_docs = []
+        seen: set[str] = set()
+        for doc in all_docs:
+            if doc.page_content not in seen:
+                seen.add(doc.page_content)
+                unique_docs.append(doc)
+
+        context = "\n\n".join([doc.page_content for doc in unique_docs])
+
+        sources = [
+            {
+                "source": doc.metadata.get("source", "unknown"),
+                "score": doc.metadata.get("score", 0.0),
+                "content_preview": doc.page_content[:100] + "...",
+            }
+            for doc in unique_docs
+        ]
+        yield self._sse("sources", sources)
+
+        # 阶段3: 流式生成
+        yield self._sse("status", {"phase": "generating", "message": "正在生成回答..."})
+
+        try:
+            for token in self.generator.stream_generate(query, context, chat_history):
+                yield self._sse("token", {"content": token})
+        except Exception as e:
+            yield self._sse("error", {"code": "LLM_FAILED", "message": str(e)})
+            return
+
+        # 阶段4: 完成
+        confidence = 0.8 if context else 0.5
+        yield self._sse("done", {"confidence": round(confidence, 2)})

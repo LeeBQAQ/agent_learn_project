@@ -2,6 +2,7 @@ from collections.abc import Iterator
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables.utils import Output
 
 from src.core.config import RAGConfig
 from src.core.model import model
@@ -31,7 +32,7 @@ class Generator:
         chain = self.rewrite_prompt | self.model | StrOutputParser()
         return chain.invoke({"query": query, "chat_history": messages})
 
-    def generate(self, query: str, context: str, chat_history: list[dict[str, str]] = None) -> str:
+    def generate(self, query: str, context: str, chat_history: list[dict[str, str]] = None) -> Output:
         """生成回答"""
         messages = []
         if chat_history:
